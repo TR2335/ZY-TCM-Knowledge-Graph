@@ -1,0 +1,16 @@
+# pre-commit 钩子（B4.3）：ruff 检查 + 格式化。
+# mypy strict 由 make check / CI 承担（避免每次提交全量类型检查的开销）。
+# 安装：cd backend && uv run pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project backend ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --project backend ruff format
+        language: system
+        types_or: [python, pyi]

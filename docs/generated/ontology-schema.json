@@ -1,0 +1,3792 @@
+{
+  "ontology_version": "0.4.0",
+  "model_count": 31,
+  "schemas": {
+    "Herb": {
+      "$defs": {
+        "Flavor": {
+          "description": "药味（§4：酸苦甘辛咸涩淡）。",
+          "enum": [
+            "酸",
+            "苦",
+            "甘",
+            "辛",
+            "咸",
+            "涩",
+            "淡"
+          ],
+          "title": "Flavor",
+          "type": "string"
+        },
+        "Meridian": {
+          "description": "归经（§4：十二经）。",
+          "enum": [
+            "肺",
+            "大肠",
+            "胃",
+            "脾",
+            "心",
+            "小肠",
+            "膀胱",
+            "肾",
+            "心包",
+            "三焦",
+            "胆",
+            "肝"
+          ],
+          "title": "Meridian",
+          "type": "string"
+        },
+        "Nature": {
+          "description": "药性（§4：寒热温凉平八级）。",
+          "enum": [
+            "寒",
+            "微寒",
+            "凉",
+            "平",
+            "温",
+            "微温",
+            "热",
+            "大热"
+          ],
+          "title": "Nature",
+          "type": "string"
+        },
+        "PregnancyLevel": {
+          "description": "妊娠禁忌分级（§4：药典\"注意\"项口径）。",
+          "enum": [
+            "禁用",
+            "忌用",
+            "慎用",
+            "无标记"
+          ],
+          "title": "PregnancyLevel",
+          "type": "string"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        },
+        "Toxicity": {
+          "description": "毒性分级（§4：无毒/小毒/有毒/大毒）。\n\nrank 为毒性严重度序（供 L2 方剂分级与 L3 剂量隐藏判定使用，§7）；\nrequires_dose_masking 直接实现 §7.4 剂量隐藏矩阵的药材判定条件。",
+          "enum": [
+            "无毒",
+            "小毒",
+            "有毒",
+            "大毒"
+          ],
+          "title": "Toxicity",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "中药（饮片级，§2.1）。规范名以 2020 药典收载名为准（UNIQUE）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "规范名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "异名/商品名/地方名，如 北芪→黄芪",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "pinyin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "拼音（检索辅助）",
+          "title": "Pinyin"
+        },
+        "latin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "拉丁学名（nmm-data）",
+          "title": "Latin"
+        },
+        "nature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Nature"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "药性"
+        },
+        "flavors": {
+          "description": "药味",
+          "items": {
+            "$ref": "#/$defs/Flavor"
+          },
+          "title": "Flavors",
+          "type": "array"
+        },
+        "meridians": {
+          "description": "归经",
+          "items": {
+            "$ref": "#/$defs/Meridian"
+          },
+          "title": "Meridians",
+          "type": "array"
+        },
+        "toxicity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Toxicity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "毒性分级"
+        },
+        "dose_range": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "常用剂量区间（统一 g，古典单位按换算表折算）",
+          "title": "Dose Range"
+        },
+        "pregnancy_level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PregnancyLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "妊娠禁忌级别（药典注意项）"
+        },
+        "icd11_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ICD-11 TM1 码（一般无）",
+          "title": "Icd11 Code"
+        },
+        "standard_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "规范名依据（药典2020/中医药学名词/SymMap）",
+          "title": "Standard Ref"
+        },
+        "is_excluded_in_formula": {
+          "default": false,
+          "description": "L1 排除清单标记（§7.3）：该药材（生品）不得出现在任何方剂组成中",
+          "title": "Is Excluded In Formula",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "Herb",
+      "type": "object"
+    },
+    "Formula": {
+      "$defs": {
+        "DosageForm": {
+          "description": "剂型（§4）。",
+          "enum": [
+            "丸",
+            "散",
+            "膏",
+            "丹",
+            "颗粒",
+            "口服液",
+            "片",
+            "胶囊"
+          ],
+          "title": "DosageForm",
+          "type": "string"
+        },
+        "FormulaType": {
+          "description": "方剂类型（§4；中成药以属性建模而非独立实体，ADR-011）。",
+          "enum": [
+            "经方",
+            "时方",
+            "中成药"
+          ],
+          "title": "FormulaType",
+          "type": "string"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        },
+        "SafetyLevel": {
+          "description": "方剂安全分级（§4 / §7.1 L2）。\n\n注意：不存在 high_risk——含毒性管理品种生品的方剂在 L1 数据层即被过滤，\n根本不入库（ADR-013）。",
+          "enum": [
+            "safe",
+            "caution"
+          ],
+          "title": "SafetyLevel",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "方剂（§2.2）：≥2 味药组成的处方单元（含经方/时方/中成药）。\n\n中成药以 formula_type 属性建模，不设独立实体（ADR-011）。\nsafety_level 由加载器按成分毒性推导（§7.1 L2）；高危方剂不获此属性——\n它们在 L1 数据层即被整体过滤，根本不入库（ADR-013）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "规范名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "别名",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "pinyin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "拼音（检索辅助）",
+          "title": "Pinyin"
+        },
+        "source_dynasty": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "出处朝代",
+          "title": "Source Dynasty"
+        },
+        "source_book": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "原书名（冗余便于展示）",
+          "title": "Source Book"
+        },
+        "efficacy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "功用摘要",
+          "title": "Efficacy"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "用法（caution 方剂对外掩码，§7.4）",
+          "title": "Usage"
+        },
+        "formula_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FormulaType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "经方/时方/中成药"
+        },
+        "dosage_form": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DosageForm"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "剂型"
+        },
+        "manufacturer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "中成药厂家（可空）",
+          "title": "Manufacturer"
+        },
+        "safety_level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SafetyLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "安全分级（加载时由成分毒性推导：含有毒级药材→caution）"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "Formula",
+      "type": "object"
+    },
+    "DiseaseTCM": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "中医疾病（§2.3）：GB/T 15657 A 码标准名。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "GB/T 15657 标准名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GB/T 15657 A 码",
+          "title": "Code"
+        },
+        "icd11_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ICD-11 TM1 码（如有）",
+          "title": "Icd11 Code"
+        },
+        "category_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "大类层级路径",
+          "title": "Category Path"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "DiseaseTCM",
+      "type": "object"
+    },
+    "Pattern": {
+      "$defs": {
+        "PatternCategory": {
+          "description": "证候分类（§4：8 类，排除韩医四象）。",
+          "enum": [
+            "八纲证",
+            "病因证",
+            "气血津液证",
+            "脏腑证",
+            "经络证",
+            "六经证",
+            "三焦证",
+            "卫气营血证"
+          ],
+          "title": "PatternCategory",
+          "type": "string"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "证候（§2.4）：疾病某阶段病理概括，辨证论治的\"证\"（GB/T 15657 B 码）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "GB/T 15657 B 码标准名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GB/T 15657 B 码",
+          "title": "Code"
+        },
+        "icd11_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ICD-11 TM1 码（SE70-SJ1Z）",
+          "title": "Icd11 Code"
+        },
+        "category_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatternCategory"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "证候分类（八纲/病因/气血津液/脏腑/经络/六经/三焦/卫气营血）"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "Pattern",
+      "type": "object"
+    },
+    "SymptomTCM": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "中医症状（§2.5）：中医口径的症状/体征表述（SymMap 收录）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "规范名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "别名",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "pinyin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "拼音（检索辅助）",
+          "title": "Pinyin"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "SymptomTCM",
+      "type": "object"
+    },
+    "DiseaseWM": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "西医疾病（§2.6）：ICD-11 第 1-24 章。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "规范名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "icd11_code": {
+          "description": "ICD-11 码（必填）",
+          "minLength": 1,
+          "title": "Icd11 Code",
+          "type": "string"
+        },
+        "en_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "英文名",
+          "title": "En Name"
+        }
+      },
+      "required": [
+        "provenance",
+        "name",
+        "icd11_code"
+      ],
+      "title": "DiseaseWM",
+      "type": "object"
+    },
+    "SymptomWM": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "西医症状（§2.7）：现代医学症状（SymMap 收录）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "规范名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "en_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "英文名",
+          "title": "En Name"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "SymptomWM",
+      "type": "object"
+    },
+    "TreatmentMethod": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "治法（§2.8）：治疗法则（GB/T 15657 C 码）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "治法名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GB/T 15657 C 码",
+          "title": "Code"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "enum": [
+                "大法",
+                "具体治法"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "层级",
+          "title": "Level"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "TreatmentMethod",
+      "type": "object"
+    },
+    "Effect": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "功效（§2.9）：中药/方剂的功效术语（归一到《中医药学名词》标准词表）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "功效术语（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "功效大类（补虚/解表/清热/活血等约 20 类，参照中药学教材）",
+          "title": "Category"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "Effect",
+      "type": "object"
+    },
+    "Component": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "化学成分（§2.10）：二阶段加载，schema 预留。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "成分名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "pubchem_cid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "PubChem CID",
+          "title": "Pubchem Cid"
+        },
+        "molecular_formula": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "分子式",
+          "title": "Molecular Formula"
+        },
+        "mw": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "分子量",
+          "title": "Mw"
+        }
+      },
+      "required": [
+        "provenance",
+        "name"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Source": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        },
+        "SourceType": {
+          "description": "知识来源类型（§2.11）。",
+          "enum": [
+            "典籍",
+            "国家标准",
+            "药典",
+            "数据库",
+            "人工整理"
+          ],
+          "title": "SourceType",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "出处（§2.11）：知识来源（典籍/标准/药典/数据库/人工整理）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "来源名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/SourceType",
+          "description": "来源类型"
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "引用义务文本",
+          "title": "Citation"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "数据协议",
+          "title": "License"
+        }
+      },
+      "required": [
+        "provenance",
+        "name",
+        "type"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "Category": {
+      "$defs": {
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "分类（§2.12）：树形分类导航节点（GB/T 15657 层级、功效大类等）。\n\n类目词不承载业务知识，仅导航；Category 之间不连业务关系（§3.2）。",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "name": {
+          "description": "分类名（UNIQUE）",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "tree_path": {
+          "description": "树路径，如 B02.07.03",
+          "minLength": 1,
+          "title": "Tree Path",
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "层级深度",
+          "title": "Level"
+        }
+      },
+      "required": [
+        "provenance",
+        "name",
+        "tree_path"
+      ],
+      "title": "Category",
+      "type": "object"
+    },
+    "ComposedOf": {
+      "$defs": {
+        "DoseUnit": {
+          "description": "剂量单位（§4：古典单位按换算表折算为 g 后入库，原文存 raw_dose）。",
+          "enum": [
+            "g",
+            "mg",
+            "ml"
+          ],
+          "title": "DoseUnit",
+          "type": "string"
+        },
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "FormulaRole": {
+          "description": "方剂配伍角色（§4：君臣佐使）。",
+          "enum": [
+            "君",
+            "臣",
+            "佐",
+            "使"
+          ],
+          "title": "FormulaRole",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "COMPOSED_OF：Formula → Herb（方剂组成，剂量与角色）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "dose": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "折算后剂量（1钱≈3g/1两≈30g，D2）",
+          "title": "Dose"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DoseUnit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "剂量单位"
+        },
+        "raw_dose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "古典单位原文，如 三两",
+          "title": "Raw Dose"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FormulaRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "君/臣/佐/使"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "ComposedOf",
+      "type": "object"
+    },
+    "HasEffect": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "HAS_EFFECT：Herb/Formula → Effect（具有功效）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "source_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "原文依据",
+          "title": "Source Text"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "HasEffect",
+      "type": "object"
+    },
+    "TreatsPattern": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "TREATS_PATTERN：Formula/Herb → Pattern（主治证候，辨证论治核心链路）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "TreatsPattern",
+      "type": "object"
+    },
+    "TreatsDisease": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "TREATS_DISEASE：Formula/Herb → DiseaseTCM（主治中医疾病）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "TreatsDisease",
+      "type": "object"
+    },
+    "IndicatesMethod": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "INDICATES_METHOD：Formula → TreatmentMethod（体现治法）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "IndicatesMethod",
+      "type": "object"
+    },
+    "HasSymptom": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "HAS_SYMPTOM：Pattern/DiseaseTCM → SymptomTCM（证/病表现为症状）。\n\nis_primary 依据 GB/T 16751.2 主症/次症诊断标准（辨证加权用，ADR-012）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "is_primary": {
+          "default": false,
+          "description": "是否主症（GB/T 16751.2）",
+          "title": "Is Primary",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "HasSymptom",
+      "type": "object"
+    },
+    "AllaysSymptom": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "ALLAYS_SYMPTOM：Formula/Herb → SymptomTCM（缓解症状）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "AllaysSymptom",
+      "type": "object"
+    },
+    "CorrespondsToDisease": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "CORRESPONDS_TO：DiseaseTCM → DiseaseWM（中西医疾病映射，ICD-11 双编码）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "mapping_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "映射来源，如 SymMap",
+          "title": "Mapping Source"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "CorrespondsToDisease",
+      "type": "object"
+    },
+    "CorrespondsToSymptom": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "CORRESPONDS_TO：SymptomTCM → SymptomWM（中西医症状映射，SymMap）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "mapping_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "映射来源，如 SymMap",
+          "title": "Mapping Source"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "CorrespondsToSymptom",
+      "type": "object"
+    },
+    "ContraindicatedWith": {
+      "$defs": {
+        "ContraType": {
+          "description": "配伍禁忌类型（§4）。",
+          "enum": [
+            "十八反",
+            "十九畏"
+          ],
+          "title": "ContraType",
+          "type": "string"
+        },
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "CONTRAINDICATED_WITH：Herb → Herb（配伍禁忌，安全红线：十八反/十九畏）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "type": {
+          "$ref": "#/$defs/ContraType",
+          "description": "十八反/十九畏"
+        },
+        "verse": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "歌诀原文",
+          "title": "Verse"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance",
+        "type"
+      ],
+      "title": "ContraindicatedWith",
+      "type": "object"
+    },
+    "PregnancyContra": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "PregnancyLevel": {
+          "description": "妊娠禁忌分级（§4：药典\"注意\"项口径）。",
+          "enum": [
+            "禁用",
+            "忌用",
+            "慎用",
+            "无标记"
+          ],
+          "title": "PregnancyLevel",
+          "type": "string"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "PREGNANCY_CONTRA：Herb → Category('妊娠禁忌')（妊娠禁/忌/慎，双轨建模）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "level": {
+          "$ref": "#/$defs/PregnancyLevel",
+          "description": "禁用/忌用/慎用"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance",
+        "level"
+      ],
+      "title": "PregnancyContra",
+      "type": "object"
+    },
+    "SynergisticWith": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "SYNERGISTIC_WITH：Herb → Herb（七情增效：相须/相使）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "type": {
+          "description": "相须/相使",
+          "enum": [
+            "相须",
+            "相使"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance",
+        "type"
+      ],
+      "title": "SynergisticWith",
+      "type": "object"
+    },
+    "Restrains": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "RESTRAINS：Herb → Herb（七情制约：相畏/相杀）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "type": {
+          "description": "相畏/相杀",
+          "enum": [
+            "相畏",
+            "相杀"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance",
+        "type"
+      ],
+      "title": "Restrains",
+      "type": "object"
+    },
+    "ProcessedFrom": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "PROCESSED_FROM：Herb → Herb（炮制品溯源，N:1，如 熟地黄→地黄，D1）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "炮制法",
+          "title": "Method"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "ProcessedFrom",
+      "type": "object"
+    },
+    "BelongsTo": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "BELONGS_TO：Herb/Formula/Pattern/DiseaseTCM/Effect → Category（分类挂载）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "BelongsTo",
+      "type": "object"
+    },
+    "FromSource": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "FROM_SOURCE：除 Category/Source 外全部 → Source（知识出处，provenance 节点化）。\n\n§3.2 完备性检查：\"Source 只作为值域\"——Source 自身不得作为起点。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "FromSource",
+      "type": "object"
+    },
+    "ContainedIn": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "CONTAINED_IN：Component → Herb（含有成分，二阶段）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "content_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "含量文献依据",
+          "title": "Content Reference"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "ContainedIn",
+      "type": "object"
+    },
+    "Manifests": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "MANIFESTS：DiseaseWM → SymptomWM（西医疾病表现，SymMap）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "Manifests",
+      "type": "object"
+    },
+    "AliasedIn": {
+      "$defs": {
+        "EntityType": {
+          "description": "实体 Label 总表（12 类，§2）。",
+          "enum": [
+            "Herb",
+            "Formula",
+            "DiseaseTCM",
+            "Pattern",
+            "SymptomTCM",
+            "DiseaseWM",
+            "SymptomWM",
+            "TreatmentMethod",
+            "Effect",
+            "Component",
+            "Source",
+            "Category"
+          ],
+          "title": "EntityType",
+          "type": "string"
+        },
+        "NodeRef": {
+          "additionalProperties": false,
+          "description": "节点引用：一条边的起点/终点（label + 规范名）。",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/EntityType"
+            },
+            "name": {
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "name"
+          ],
+          "title": "NodeRef",
+          "type": "object"
+        },
+        "Provenance": {
+          "additionalProperties": false,
+          "description": "出处与置信度。\n\n- source_id 指向 Source 节点，加载时同步建立 FROM_SOURCE 关系；\n- confidence 约定见 ProvenanceMethod 文档字符串；\n- 同一事实多源冲突时保留全部边并在边属性记录各源，展示层按 confidence 排序。",
+          "properties": {
+            "source_id": {
+              "description": "指向 Source 节点（同步建立 FROM_SOURCE 关系）",
+              "minLength": 1,
+              "title": "Source Id",
+              "type": "string"
+            },
+            "confidence": {
+              "description": "置信度 0-1：curated=1.0 / db_import=0.95 / llm_extract=模型自评",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "extracted_at": {
+              "description": "入库时间（UTC）",
+              "format": "date-time",
+              "title": "Extracted At",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/ProvenanceMethod",
+              "description": "获取方式"
+            }
+          },
+          "required": [
+            "source_id",
+            "confidence",
+            "method"
+          ],
+          "title": "Provenance",
+          "type": "object"
+        },
+        "ProvenanceMethod": {
+          "description": "知识获取方式（§5）。\n\n置信度约定：curated=1.0；db_import=0.95；llm_extract=模型自评（默认 0.7）；\nmanual_review 永远最高优先（多源冲突展示按 confidence 排序）。",
+          "enum": [
+            "curated",
+            "db_import",
+            "llm_extract",
+            "manual_review"
+          ],
+          "title": "ProvenanceMethod",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "ALIASED_IN：Herb/Formula → Source（别名著录出处）。",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "end": {
+          "$ref": "#/$defs/NodeRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "provenance"
+      ],
+      "title": "AliasedIn",
+      "type": "object"
+    }
+  }
+}

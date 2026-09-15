@@ -1,0 +1,48 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ===== Node / Next.js（Phase G）=====
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# ===== 环境与密钥 =====
+.env
+.env.local
+.env.*.local
+
+# ===== 数据（curated/ 为人工整理资产，需版本化；其余可再生产，不入库）=====
+data/raw/
+data/parsed/
+data/extracted/
+data/aligned/
+data/models/
+data/cache/
+*.log
+
+# ===== 模型缓存 =====
+.cache/
+DeepEavl/.deepeval/
+
+# ===== OS / IDE / 本地工具状态 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
+.omc/
+.trae/
+

@@ -1,0 +1,91 @@
+# ============================================================
+# 文件用途：本草通 2.0（tcm-kgs）Python 项目配置
+# 核心功能：
+#   - 定义项目依赖：FastAPI / Neo4j / LangGraph / Pydantic / Langfuse / structlog 等
+#   - 配置质量工具链：ruff（lint + format）、mypy strict（类型检查）、pytest（测试）
+#   - 声明 CLI 入口：tcm 命令（tcm_kg.cli:main），提供 load / serve 等子命令
+# 如何使用：
+#   make sync              # uv sync 安装依赖
+#   uv run tcm --help      # 查看 CLI 子命令
+#   make check             # 质量门禁：ruff + mypy strict + pytest 全绿
+# ============================================================
+[project]
+name = "tcm-kg"
+version = "0.1.0"
+description = "本草通 2.0：中医知识图谱本体模型、数据管线与 Agentic GraphRAG 问答后端"
+requires-python = ">=3.13"
+dependencies = [
+    # runtime（MASTER_PLAN §10.3）
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "langgraph>=1.0",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.3",
+    "neo4j>=5.28",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "structlog>=24.4",
+    "typer>=0.15",
+    "httpx>=0.28",
+    # 数据解析（C3 parser 运行时依赖；重量级嵌入/训练库仍在 pipeline 组）
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    # 可观测（B6.2：Langfuse 自托管配套 SDK，服务端经 compose profile 启动）
+    "langfuse>=2.57,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "mypy>=1.14",
+    "ruff>=0.9",
+    "pre-commit>=4.0",
+    "pandas-stubs>=2.2",
+]
+pipeline = [
+    "selectolax>=0.3",
+    "tenacity>=9.0",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "sentence-transformers>=3.3",
+    "FlagEmbedding>=1.3",
+    "pymupdf>=1.28.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tcm_kg"]
+
+[project.scripts]
+tcm = "tcm_kg.cli:main"
+
+# ===== 质量工具链（B4）=====
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tcm_kg"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+pretty = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "langfuse.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,280 @@
+<!--
+  ============================================================
+  文件用途：本草通 2.0（tcm-kgs）前端单文件演示版
+  核心功能：
+    - 智能问答聊天面板：调用后端 POST /api/chat 接口，支持自然语言提问与 ⚠ 警示文案高亮
+    - SVG 力导向图谱可视化：调用后端 GET /api/graph 接口，自绘节点/边布局，毒性节点红色警示
+    - 毒性治理：毒性方剂/药材隐藏剂量，并强制就医引导
+  如何使用：
+    - 由 FastAPI 后端静态托管，同源访问，避免跨域
+    - 启动顺序：make up（Neo4j）→ tcm load（入库）→ tcm serve（API + 本页面）
+    - 4 个快捷按钮演示：附子毒性剂量隐藏 / 四逆汤方剂组成 / 心悸失眠乏力辨证 / 甘草-甘遂配伍禁忌
+  ============================================================
+-->
+<!DOCTYPE html><!-- HTML5 文档类型声明 -->
+<html lang="zh-CN"><!-- 中文页面，利于浏览器与读屏器识别 -->
+<head>
+<meta charset="UTF-8"><!-- 字符编码：UTF-8 保证中文正常显示 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><!-- 视口设置：移动端自适应宽度 -->
+<title>本草通 2.0 · 中医知识图谱</title><!-- 浏览器标签页标题 -->
+<style>
+  /* ---------- CSS 变量（设计令牌）：全站配色统一在此管理 ---------- */
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --primary: #2f6f4f; --primary-dark: #1e4d35; /* 背景灰白/卡片纯白/主色中药绿/深绿悬停 */
+    --danger: #c0392b; --danger-bg: #fdecea; --border: #e2e6ea; --text: #2c3338; /* 危险红/危险浅底/边框灰/正文深灰 */
+    --muted: #7a828a; --accent: #d4a017; /* 弱化文字灰/点缀金黄 */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; } /* 全局：盒模型按边框计算 + 清除默认边距 */
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: var(--bg); color: var(--text); } /* 正文：中文字体栈 + 浅灰背景 */
+  header { background: var(--primary); color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 12px; } /* 页头：绿色横条，flex 布局横向排列 */
+  header h1 { font-size: 18px; font-weight: 600; } /* 页头标题：18px 中等字重 */
+  header .badge { font-size: 11px; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 10px; } /* "Evidence-first GraphRAG" 金色小徽章 */
+  header .api-status { margin-left: auto; font-size: 12px; opacity: .9; } /* API 状态文字：margin-left:auto 推到最右侧 */
+  .layout { display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px 24px; max-width: 1400px; margin: 0 auto; } /* 主体两栏网格：左侧图谱自适应/右侧聊天固定 420px，整体居中限宽 */
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } } /* 窄屏响应式：1000px 以下改为单栏堆叠 */
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; } /* 面板卡片：白底圆角带边框（overflow:hidden 配合圆角裁切子元素） */
+  .panel-head { padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; } /* 面板标题栏：下边框与正文分隔 */
+  .panel-body { padding: 16px; } /* 面板正文内边距（当前版本部分面板直接用子元素样式，此为通用兜底） */
+  #graph { width: 100%; height: 560px; background: #fff; } /* 图谱容器：固定高度 560px，SVG 填满 */
+  .chat-area { height: 420px; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; } /* 聊天记录区：纵向 flex + 超高滚动 */
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; } /* 消息气泡通用：限宽/pre-wrap 保留换行/长词强制换行 */
+  .msg.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; } /* 用户消息：靠右绿底（右下角改小半径形成"尾巴"） */
+  .msg.bot { align-self: flex-start; background: #f0f2f5; border-bottom-left-radius: 4px; } /* 机器人消息：靠左灰底（左下角改小半径） */
+  .msg.bot .warning { color: var(--danger); font-weight: 600; display: block; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--danger); } /* ⚠ 警示段：红字加粗 + 上方红色虚线分隔（就医引导文案专用） */
+  .chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); } /* 底部输入行：输入框+按钮横向排列 */
+  .chat-input input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; } /* 输入框：flex:1 占满剩余宽度 */
+  .chat-input input:focus { border-color: var(--primary); } /* 输入框聚焦：边框变绿提示 */
+  .chat-input button { padding: 10px 20px; background: var(--primary); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; } /* 发送按钮：绿底白字 */
+  .chat-input button:hover { background: var(--primary-dark); } /* 发送按钮悬停：加深 */
+  .chat-input button:disabled { background: var(--muted); cursor: not-allowed; } /* 发送按钮禁用态：灰色 + 禁用光标（等待回复时） */
+  .safety-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger); padding: 1px 8px; border-radius: 10px; } /* 安全徽章：红边红底小胶囊（页头"毒性内容已治理"） */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); padding: 8px 16px; border-top: 1px solid var(--border); } /* 图例条：图谱下方颜色说明 */
+  .legend span { display: inline-flex; align-items: center; gap: 4px; } /* 图例项：色点+文字横向排列 */
+  .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; } /* 图例色点：10px 小圆点 */
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; } /* 快捷提问按钮组：可换行 */
+  .quick button { font-size: 12px; padding: 4px 12px; border: 1px solid var(--border); background: #fff; border-radius: 14px; cursor: pointer; color: var(--text); } /* 快捷按钮：白底胶囊形 */
+  .quick button:hover { border-color: var(--primary); color: var(--primary); } /* 快捷按钮悬停：绿边绿字 */
+  .hint { font-size: 12px; color: var(--muted); padding: 0 16px 12px; } /* 提示文字：灰色小字（名称匹配用法说明） */
+</style>
+</head>
+<body>
+<!-- 页头：品牌 + 徽章 + 安全声明 + API 状态 -->
+<header>
+  <h1>本草通 2.0</h1><!-- 产品名 -->
+  <span class="badge">Evidence-first GraphRAG</span><!-- 技术定位徽章 -->
+  <span class="safety-badge">⚠ 毒性内容已治理：剂量隐藏 · 强制就医引导</span><!-- 安全治理声明（对应后端 L3/L4 防线） -->
+  <span class="api-status" id="apiStatus">API：检测中…</span><!-- 后端连通状态（JS 启动时探测更新） -->
+</header>
+
+<!-- 主体两栏：左图谱 / 右聊天 -->
+<div class="layout">
+  <!-- 左栏：知识图谱面板 -->
+  <section class="panel">
+    <div class="panel-head">知识图谱可视化（前 120 节点）</div><!-- 面板标题 -->
+    <div id="graph"></div><!-- SVG 图谱挂载点（JS 渲染填充） -->
+    <!-- 图例：节点颜色含义 -->
+    <div class="legend">
+      <span><i style="background:#2f6f4f"></i>中药</span><!-- 绿色=中药 -->
+      <span><i style="background:#3468a5"></i>方剂</span><!-- 蓝色=方剂 -->
+      <span><i style="background:#8e44ad"></i>证候</span><!-- 紫色=证候 -->
+      <span><i style="background:#d4a017"></i>症状</span><!-- 金色=症状 -->
+      <span><i style="background:#c0392b"></i>含毒性（警示）</span><!-- 红色=含毒性节点（视觉警示） -->
+      <span><i style="background:#95a5a6"></i>其他</span><!-- 灰色=其他类型 -->
+    </div>
+  </section>
+
+  <!-- 右栏：智能问答面板 -->
+  <section class="panel">
+    <div class="panel-head">智能问答</div><!-- 面板标题 -->
+    <!-- 聊天记录区：预置一条欢迎语（含就医引导合规文案） -->
+    <div class="chat-area" id="chatArea">
+      <div class="msg bot">你好，我是本草通。可以查询药材/方剂详情、辨证（描述症状）、检查配伍禁忌。毒性方剂与药材不提供剂量，请前往正规医疗机构由执业中医师开具。</div>
+    </div>
+    <!-- 快捷提问按钮：data-q 存预设问题，点击即发送（覆盖四大演示场景） -->
+    <div class="quick">
+      <button data-q="查询「附子」的详情">附子详情（毒性演示）</button><!-- 演示：毒性药材剂量隐藏 -->
+      <button data-q="「四逆汤」的组成">四逆汤组成</button><!-- 演示：方剂组成查询 -->
+      <button data-q="心悸失眠乏力是什么证">辨证演示</button><!-- 演示：症状→证候推理 -->
+      <button data-q="「甘草」和「甘遂」配伍禁忌">配伍禁忌演示</button><!-- 演示：十八反禁忌检查 -->
+    </div>
+    <div class="hint">提示：名称用「」或引号包裹可精确匹配。</div><!-- 使用技巧提示 -->
+    <!-- 输入区：文本框 + 发送按钮 -->
+    <div class="chat-input">
+      <input id="chatInput" placeholder="输入问题，回车发送…" autocomplete="off"><!-- 输入框（关闭自动补全） -->
+      <button id="sendBtn">发送</button><!-- 发送按钮（请求期间禁用防重复提交） -->
+    </div>
+  </section>
+</div>
+
+<!-- 第三方库：svg-pan-zoom——为 SVG 图谱提供滚轮缩放与拖拽平移（CDN 引入） -->
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<script>
+// ---------- API 基址选择 ----------
+// 同源部署（FastAPI 静态托管）时直接用当前 origin；本地开发（file:// 或 3000 端口预览）时回退到本机 8000
+const API = window.location.origin.startsWith('http') && !window.location.origin.includes(':3000')
+  ? window.location.origin : 'http://127.0.0.1:8000';
+
+// 节点类型 → 颜色映射表：与图例一致；toxic=毒性红；default=兜底灰
+const LABEL_COLOR = {
+  Herb: '#2f6f4f', Formula: '#3468a5', Pattern: '#8e44ad',
+  SymptomTCM: '#d4a017', DiseaseTCM: '#16a085', Effect: '#e67e22',
+  toxic: '#c0392b', default: '#95a5a6'
+};
+// 毒性判定表：Herb 看 toxicity 字段（有毒/大毒），Formula 看 safety_level（caution）
+const TOXIC_LABELS = { Herb: ['有毒','大毒'], Formula: ['caution'] };
+
+// ---------- API 状态探测 ----------
+async function checkApi() {  // 异步函数：请求健康检查接口
+  try {
+    const r = await fetch(API + '/api/v1/health');  // GET 健康检查
+    if (r.ok) { document.getElementById('apiStatus').textContent = 'API：已连接'; return; }  // 2xx：更新状态为已连接
+    throw new Error();  // 非 2xx 视为不可用，走 catch
+  } catch {
+    document.getElementById('apiStatus').textContent = 'API 未连接（启动：tcm serve）';  // 失败：给出启动指引
+  }
+}
+checkApi();  // 页面加载即探测一次
+
+// ---------- 聊天模块 ----------
+const chatArea = document.getElementById('chatArea');  // 聊天记录容器
+const chatInput = document.getElementById('chatInput');  // 输入框
+const sendBtn = document.getElementById('sendBtn');  // 发送按钮
+
+// 添加消息气泡：role 区分 user/bot；⚠ 之后的内容高亮为红色警示块
+function addMsg(role, text) {
+  const div = document.createElement('div');  // 新建气泡元素
+  div.className = 'msg ' + role;  // 类名 msg + 角色（决定左右/配色）
+  // 警示文案高亮
+  const warningIdx = text.indexOf('⚠');  // 定位警示符 ⚠ 首次出现位置
+  if (warningIdx >= 0) {  // 有警示段：拆成普通文本 + 红色警示 span
+    const normal = document.createTextNode(text.slice(0, warningIdx));  // ⚠ 之前的普通部分
+    const warn = document.createElement('span');  // 警示部分用 span 包裹
+    warn.className = 'warning';  // 应用红色警示样式
+    warn.textContent = text.slice(warningIdx);  // ⚠ 及之后的全部内容
+    div.append(normal, warn);  // 两段依序塞进气泡
+  } else {
+    div.textContent = text;  // 无警示：整段纯文本
+  }
+  chatArea.appendChild(div);  // 气泡追加到记录区
+  chatArea.scrollTop = chatArea.scrollHeight;  // 滚动到底部（最新消息可见）
+  return div;  // 返回气泡引用（发送方可用它原地更新"查询中…"）
+}
+
+// 发送问题 → 调后端 /api/v1/chat → 渲染回答 + 证据引用
+async function send(question) {
+  if (!question.trim()) return;  // 空输入直接忽略
+  addMsg('user', question);  // 先渲染用户消息气泡
+  chatInput.value = '';  // 清空输入框
+  sendBtn.disabled = true;  // 禁用发送按钮（防连点）
+  const botDiv = addMsg('bot', '查询中…');  // 占位气泡：拿到结果后替换
+  try {
+    const r = await fetch(API + '/api/v1/chat', {  // POST 问答接口
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question})  // 请求体：{"question": "..."}
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);  // 非 2xx 抛错（进 catch 提示）
+    const data = await r.json();  // 解析响应 JSON（answer + evidence 数组）
+    botDiv.remove();  // 移除"查询中…"占位气泡
+    const answer = addMsg('bot', data.answer);  // 渲染正式回答气泡
+    if (Array.isArray(data.evidence) && data.evidence.length) {  // 有证据：附引用小字（可溯源）
+      const cite = document.createElement('small');  // 小号字元素
+      cite.className = 'evidence';  // 类名（样式可扩展）
+      cite.textContent = '证据：' + data.evidence.map(e => e.evidence_id).join(' · ');  // 拼接证据 ID 列表
+      answer.appendChild(cite);  // 引用挂在回答气泡内底部
+    }
+  } catch (e) {
+    botDiv.textContent = 'API 不可达：' + e.message + '\n请先启动后端：tcm serve';  // 失败：占位气泡原地变错误提示
+  } finally {
+    sendBtn.disabled = false;  // 无论成败恢复发送按钮
+    chatInput.focus();  // 焦点回到输入框（连续提问）
+  }
+}
+
+sendBtn.onclick = () => send(chatInput.value);  // 点击发送
+chatInput.onkeydown = (e) => { if (e.key === 'Enter') send(chatInput.value); };  // 回车发送
+document.querySelectorAll('.quick button').forEach(btn => {  // 快捷按钮逐个绑定
+  btn.onclick = () => send(btn.dataset.q);  // 点击即发送预设问题（data-q）
+});
+
+// ---------- 图谱可视化（自绘 SVG 力导向布局） ----------
+// 拉取图数据：节点+边各取前 120，交给 renderGraph 渲染
+async function loadGraph() {
+  try {
+    const r = await fetch(API + '/api/graph?limit=120');  // GET 图数据（限 120 节点）
+    if (!r.ok) throw new Error();  // 非 2xx 抛错进 catch
+    const data = await r.json();  // {nodes: [...], edges: [...]}
+    renderGraph(data.nodes, data.edges);  // 交给渲染函数
+  } catch {
+    document.getElementById('graph').innerHTML =  // 失败：容器内显示启动步骤指引
+      '<div style="padding:40px;text-align:center;color:#7a828a">图谱不可达：请先启动 Neo4j（make up）→ 入库（tcm load）→ API（tcm serve）</div>';
+  }
+}
+
+// 节点配色：先判毒性（红），否则按类型取色，未知类型灰色
+function nodeColor(node) {
+  const labels = TOXIC_LABELS[node.label] || [];  // 该类型的毒性取值列表（无则空）
+  const vals = [node.toxicity, node.safety_level].filter(Boolean);  // 节点自身的毒性/安全等级字段（去空值）
+  if (vals.some(v => labels.includes(v))) return LABEL_COLOR.toxic;  // 字段命中毒性取值 → 红色
+  return LABEL_COLOR[node.label] || LABEL_COLOR.default;  // 否则按类型取色/兜底灰
+}
+
+// 力导向布局 + SVG 渲染：三步——初始化位置 → 迭代力学模拟 → 拼装 SVG 字符串
+function renderGraph(nodes, edges) {
+  const W = 900, H = 540;  // 画布逻辑尺寸（viewBox 坐标系）
+  // 第 1 步：初始化节点——螺旋散布初始坐标（避免重叠导致力学计算退化）
+  const nodesArr = nodes.map((n, i) => ({
+    ...n, id: i,  // 展开原字段 + 分配序号
+    x: W/2 + Math.cos(i * 2.4) * (200 + (i%5)*30),  // x：黄金角螺旋，半径分层变化
+    y: H/2 + Math.sin(i * 2.4) * (160 + (i%4)*25),  // y：同理（2.4 弧度≈黄金角，散点均匀）
+    vx: 0, vy: 0  // 初速度清零
+  }));
+  const byName = new Map(nodesArr.map(n => [n.name, n]));  // 名称 → 节点查找表（边按名称引用节点）
+  const links = edges  // 过滤掉端点缺失的边（端点不在前 120 节点内的丢弃）
+    .map(e => ({source: byName.get(e.source), target: byName.get(e.target), relation: e.relation}))
+    .filter(l => l.source && l.target);
+
+  // 第 2 步：简单力导向（固定迭代）——每轮对每个节点累加三种力再位移
+  for (let iter = 0; iter < 200; iter++) {  // 固定 200 轮（不用收敛判断，简单可控）
+    for (const n of nodesArr) {  // 逐节点计算合力
+      let fx = (W/2 - n.x) * 0.002, fy = (H/2 - n.y) * 0.002;  // 力①向心力：把节点拉回画布中心（防飘散）
+      for (const m of nodesArr) {  // 力②节点间斥力：任意两节点互相排斥（防重叠）
+        if (n === m) continue;  // 跳过自身
+        const dx = n.x - m.x, dy = n.y - m.y;  // 两节点坐标差
+        const d2 = dx*dx + dy*dy || 1;  // 距离平方（||1 防零除）
+        fx += dx / d2 * 800; fy += dy / d2 * 800;  // 库仑斥力：与距离平方成反比
+      }
+      for (const l of links) {  // 力③边的弹簧力：相连节点互相拉近（成团聚集）
+        const other = l.source === n ? l.target : (l.target === n ? l.source : null);  // 找到 n 在该边的另一端
+        if (!other) continue;  // 该边与 n 无关
+        fx += (other.x - n.x) * 0.02; fy += (other.y - n.y) * 0.02;  // 胡克弹簧：位移差×弹性系数
+      }
+      n.vx = (n.vx + fx) * 0.5; n.vy = (n.vy + fy) * 0.5;  // 速度 = (旧速度+合力)×阻尼0.5（防震荡发散）
+    }
+    for (const n of nodesArr) { n.x += n.vx; n.y += n.vy;  // 按速度位移一步
+      n.x = Math.max(40, Math.min(W-40, n.x)); n.y = Math.max(30, Math.min(H-30, n.y)); }  // 夹紧在画布内（留边距）
+  }
+
+  // 渲染时的取色函数：毒性红 / 类型色 / 兜底灰（与 nodeColor 逻辑一致的内联版）
+  const colorOf = n => n.toxicity === '有毒' || n.toxicity === '大毒' || n.safety_level === 'caution'
+    ? '#c0392b' : (LABEL_COLOR[n.label] || '#95a5a6');
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%" id="graphSvg">`;  // SVG 开标签：viewBox 逻辑坐标 → 自适应容器
+  for (const l of links) {  // 先画边（在下层）：灰色细线连接两端坐标
+    svg += `<line x1="${l.source.x}" y1="${l.source.y}" x2="${l.target.x}" y2="${l.target.y}" stroke="#d5dade" stroke-width="1"/>`;
+  }
+  for (const n of nodesArr) {  // 再画节点（在上层）：圆 + 悬停提示
+    const r = n.label === 'Formula' ? 8 : 6;  // 方剂节点稍大（视觉区分层级）
+    // circle + title 子标签 = 原生悬停 tooltip（类型: 名称 + 毒性标注）
+    svg += `<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${colorOf(n)}" opacity="0.9"><title>${n.label}: ${n.name}${n.toxicity ? '（'+n.toxicity+'）' : ''}</title></circle>`;
+    // 标签策略：方剂/证候全标注；药材只标含毒的（红色那类）——控制文字密度
+    if (n.label === 'Formula' || n.label === 'Pattern' || (n.label === 'Herb' && colorOf(n) === '#c0392b')) {
+      svg += `<text x="${n.x}" y="${n.y - 10}" text-anchor="middle" font-size="10" fill="#2c3338">${n.name}</text>`;
+    }
+  }
+  svg += '</svg>';  // SVG 闭标签
+  document.getElementById('graph').innerHTML = svg;  // 整体注入容器（一次性 DOM 更新，性能好）
+}
+
+loadGraph();  // 页面加载即拉取并渲染图谱
+</script>
+</body>
+</html>
