@@ -1,4 +1,4 @@
-# 本草通 TCM AI Knowledge Engineering Platform
+# TCM AI Knowledge Engineering Platform
 
 面向 AI 应用、Agent、RAG 工程师面试的中医知识工程平台。项目把多来源中医资料加工为可追溯知识图谱，并通过 GraphRAG Agent 提供带证据、可审计、具备安全策略的问答能力。
 
